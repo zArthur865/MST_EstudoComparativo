@@ -4,7 +4,7 @@ import algorithms.common.MSTAlgorithm;
 import algorithms.common.MSTResult;
 import algorithms.greedy.kruskal.Kruskal;
 import algorithms.greedy.prim.PrimAdjList;
-// import algorithms.backtracking.MSTBacktracking; // matheus Descomenta isso aqui quando implementar
+import algorithms.backtracking.MSTBacktracking;
 
 import graph.Graph;
 import graph.GraphGenerator;
@@ -31,7 +31,7 @@ public class Benchmark {
         // Adiciona os algoritmos a serem testados
         this.algorithms.add(new Kruskal());
         this.algorithms.add(new PrimAdjList());
-        // this.algorithms.add(new MSTBacktracking()); // Adiciona o backtracking aqui viss
+        this.algorithms.add(new MSTBacktracking()); // Adiciona o backtracking aqui viss
     }
 
     /**
