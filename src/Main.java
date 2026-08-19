@@ -1,3 +1,5 @@
+import analysis.ChartGenerator;
+import analysis.ResultProcessor;
 import benchmark.Benchmark;
 import benchmark.BenchmarkConfig;
 import graph.Graph;
@@ -10,9 +12,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Ponto de entrada principal do projeto MST.
+ * Ponto de entrada principal do projeto de estudo comparativo
+ * de algoritmos de Árvore Geradora Mínima (MST).
  *
- * Comandos:
+ * Comandos disponíveis:
  *
  * generate
  *     Gera e salva as instâncias de teste.
@@ -20,14 +23,15 @@ import java.util.Map;
  * benchmark
  *     Executa os experimentos utilizando as instâncias salvas.
  *
+ * analyze
+ *     Processa os resultados brutos e gera os gráficos.
+ *
  * help
  *     Exibe os comandos disponíveis.
  */
 public class Main {
 
-    public static void main(
-            String[] args
-    ) {
+    public static void main(String[] args) {
 
         if (args.length == 0) {
             printUsage();
@@ -45,6 +49,10 @@ public class Main {
 
             case "benchmark":
                 runBenchmark();
+                break;
+
+            case "analyze":
+                analyzeResults();
                 break;
 
             case "help":
@@ -65,8 +73,8 @@ public class Main {
     }
 
     /**
-     * Gera e salva as instâncias oficiais
-     * utilizadas pelos experimentos.
+     * Gera e salva as instâncias oficiais utilizadas
+     * nos experimentos.
      */
     private static void generateInstances() {
 
@@ -89,10 +97,14 @@ public class Main {
         };
 
         /*
-         * IMPORTANTE:
+         * Categorias de densidade.
          *
-         * Os nomes devem ser iguais aos nomes usados
-         * no BenchmarkConfig.
+         * Os nomes precisam ser iguais aos utilizados
+         * no BenchmarkConfig:
+         *
+         * sparse
+         * medium
+         * dense
          */
         Map<String, Double> densities =
                 new LinkedHashMap<>();
@@ -150,16 +162,23 @@ public class Main {
 
                 long requestedEdges =
                         Math.round(
-                                maxEdges
-                                        * density
+                                maxEdges * density
                         );
 
+                /*
+                 * Um grafo conexo precisa possuir
+                 * pelo menos V - 1 arestas.
+                 */
                 int edges =
                         (int) Math.max(
                                 vertices - 1L,
                                 requestedEdges
                         );
 
+                /*
+                 * Não pode ultrapassar o número máximo
+                 * de arestas de um grafo simples.
+                 */
                 edges =
                         (int) Math.min(
                                 edges,
@@ -221,6 +240,14 @@ public class Main {
 
     /**
      * Constrói o caminho onde uma instância será salva.
+     *
+     * Estrutura:
+     *
+     * instances/
+     * ├── small/
+     * ├── medium/
+     * ├── large/
+     * └── very_large/
      */
     private static Path buildInstancePath(
             int vertices,
@@ -265,10 +292,8 @@ public class Main {
     }
 
     /**
-     * Executa o benchmark.
-     *
-     * O Benchmark irá carregar as instâncias
-     * previamente salvas pelo comando generate.
+     * Executa o benchmark utilizando as instâncias
+     * previamente salvas.
      */
     private static void runBenchmark() {
 
@@ -276,7 +301,7 @@ public class Main {
                 new BenchmarkConfig();
 
         /*
-         * Tamanhos gerais.
+         * Tamanhos gerais para Prim e Kruskal.
          */
         config.setVertexCounts(
                 new int[]{
@@ -289,7 +314,7 @@ public class Main {
         );
 
         /*
-         * Tamanhos para Backtracking.
+         * Tamanhos menores para o Backtracking.
          */
         config.setBacktrackingVertexCounts(
                 new int[]{
@@ -302,20 +327,36 @@ public class Main {
                 }
         );
 
+        /*
+         * Quantidade de execuções medidas.
+         */
         config.setRepetitions(10);
 
+        /*
+         * Aquecimento da JVM.
+         */
         config.setWarmupRuns(2);
 
+        /*
+         * Seed das instâncias.
+         */
         config.setSeed(42L);
 
+        /*
+         * Intervalo dos pesos.
+         */
         config.setMinWeight(1.0);
 
         config.setMaxWeight(100.0);
 
-        config.setMaxBacktrackingVertices(
-                15
-        );
+        /*
+         * Limite de tamanho para Backtracking.
+         */
+        config.setMaxBacktrackingVertices(15);
 
+        /*
+         * Arquivo de saída dos dados brutos.
+         */
         config.setOutputFile(
                 "results/raw/resultado_benchmark.csv"
         );
@@ -324,6 +365,75 @@ public class Main {
                 new Benchmark(config);
 
         benchmark.run();
+    }
+
+    /**
+     * Processa os resultados brutos e gera os gráficos.
+     *
+     * Fluxo:
+     *
+     * raw CSV
+     *     ↓
+     * summary.csv
+     *     ↓
+     * gráficos SVG
+     */
+    private static void analyzeResults() {
+
+        String rawFile =
+                "results/raw/resultado_benchmark.csv";
+
+        String processedFile =
+                "results/processed/summary.csv";
+
+        String graphsDirectory =
+                "results/graphs";
+
+        System.out.println(
+                "=============================================="
+        );
+
+        System.out.println(
+                "       ANÁLISE DOS RESULTADOS"
+        );
+
+        System.out.println(
+                "=============================================="
+        );
+
+        System.out.println();
+
+        /*
+         * Processa o CSV bruto.
+         */
+        System.out.println(
+                "Processando resultados..."
+        );
+
+        ResultProcessor.process(
+                rawFile,
+                processedFile
+        );
+
+        System.out.println();
+
+        /*
+         * Gera os gráficos.
+         */
+        System.out.println(
+                "Gerando gráficos..."
+        );
+
+        ChartGenerator.generateAll(
+                processedFile,
+                graphsDirectory
+        );
+
+        System.out.println();
+
+        System.out.println(
+                "Análise concluída."
+        );
     }
 
     /**
@@ -367,6 +477,16 @@ public class Main {
 
         System.out.println(
                 "      Executa os experimentos."
+        );
+
+        System.out.println();
+
+        System.out.println(
+                "  analyze"
+        );
+
+        System.out.println(
+                "      Processa os resultados e gera os gráficos."
         );
 
         System.out.println();
