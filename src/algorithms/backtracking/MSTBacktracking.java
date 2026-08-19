@@ -6,33 +6,29 @@ import graph.Edge;
 import graph.Graph;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
- * Implementação do algoritmo de Backtracking para Árvore Geradora Mínima.
+ * Implementação de MST utilizando Backtracking.
  *
- * Estratégia:
- * 1. Ordena as arestas por peso crescente.
- * 2. Para cada aresta, decide recursivamente incluí-la ou não na solução.
- * 3. Podas aplicadas:
- *    - Não incluir arestas que formem ciclo (verificação com Union-Find simplificado);
- *    - Se o número de arestas restantes for insuficiente para completar V - 1;
- *    - Se o limite inferior otimista (peso atual + menores arestas restantes)
- *      já não puder superar a melhor solução encontrada.
- * 4. Retorna {@link BacktrackingResult} com métricas de exploração
- *    da busca para análise comparativa com os algoritmos gulosos.
-<<<<<<< HEAD
-<<<<<<< HEAD
+ * O algoritmo explora diferentes combinações de arestas
+ * buscando uma árvore geradora de peso mínimo.
  *
- * As métricas de exploração são acumuladas em um
- * {@link BacktrackingMetrics}, separando a coleta de dados
- * da lógica de busca.
-=======
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
+ * Para reduzir o espaço de busca:
+ * - as arestas são processadas em ordem crescente de peso;
+ * - combinações que formariam ciclos são podadas;
+ * - soluções cujo peso já não pode superar a melhor solução
+ *   conhecida também são podadas.
  */
 public class MSTBacktracking implements MSTAlgorithm {
+
+    private BacktrackingMetrics metrics;
+
+    private List<Edge> bestSolution;
+    private double bestWeight;
+
+    private List<Edge> candidateEdges;
 
     @Override
     public MSTResult execute(Graph graph) {
@@ -52,123 +48,66 @@ public class MSTBacktracking implements MSTAlgorithm {
         }
 
         /*
-         * Grafo com 1 vértice:
-         * a MST é vazia e possui peso 0.
+         * Inicializa as métricas para uma nova execução.
+         */
+        metrics = new BacktrackingMetrics();
+
+        bestSolution = new ArrayList<>();
+        bestWeight = Double.POSITIVE_INFINITY;
+
+        /*
+         * Cria uma cópia das arestas para não alterar
+         * a estrutura original do Graph.
+         */
+        candidateEdges = new ArrayList<>(
+                graph.getEdges()
+        );
+
+        /*
+         * Processar as arestas em ordem crescente
+         * melhora a qualidade das primeiras soluções
+         * encontradas e, consequentemente, permite
+         * mais podas.
+         */
+        candidateEdges.sort(
+                Comparator.comparingDouble(
+                        Edge::getWeight
+                )
+        );
+
+        /*
+         * Caso especial: um grafo com um único vértice.
          */
         if (vertices == 1) {
-
-            return new BacktrackingResult(
+            return new MSTResult(
                     new ArrayList<>(),
-                    0.0,
-                    1,
-                    0,
-<<<<<<< HEAD
-<<<<<<< HEAD
-                    0,
-                    1
-=======
-                    0
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
-                    0
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
+                    0.0
             );
         }
 
         /*
-         * Copiamos as arestas e ordenamos por peso crescente.
-         *
-         * A ordenação permite aplicar a poda por limite inferior.
+         * Inicia a busca.
          */
-        List<Edge> sortedEdges =
-                new ArrayList<>(graph.getEdges());
+        List<Edge> currentSolution =
+                new ArrayList<>();
 
-        sortedEdges.sort(null);
-
-        int edgeCount = sortedEdges.size();
-
-        /*
-         * minRemaining[i] = soma dos pesos das arestas
-         * na posição i até o final da lista ordenada.
-         *
-         * Isso representa o limite inferior otimista:
-         * assumimos que conseguimos adicionar as menores arestas
-         * restantes sem formar ciclos.
-         */
-        double[] minRemaining = new double[edgeCount + 1];
-        minRemaining[edgeCount] = 0.0;
-
-        for (int i = edgeCount - 1; i >= 0; i--) {
-            minRemaining[i] =
-                    minRemaining[i + 1] + sortedEdges.get(i).getWeight();
-        }
-
-        /*
-         * Estado inicial da busca.
-         *
-         * Utilizamos um Union-Find simples (sem compressão de caminho)
-         * para permitir o rollback durante o backtracking.
-         */
-        int[] parent = new int[vertices];
-
-        for (int i = 0; i < vertices; i++) {
-            parent[i] = i;
-        }
-
-        List<Edge> currentEdges = new ArrayList<>();
-
-        double[] bestWeight = {Double.POSITIVE_INFINITY};
-
-        List<Edge> bestEdges = new ArrayList<>();
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-        /*
-         * Acumula as métricas da exploração.
-         */
-        BacktrackingMetrics metrics = new BacktrackingMetrics();
-=======
-        long[] exploredStates = {0};
-        long[] prunedStates = {0};
-        int[] maxRecursionDepth = {0};
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
-        long[] exploredStates = {0};
-        long[] prunedStates = {0};
-        int[] maxRecursionDepth = {0};
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
+        boolean[] selected =
+                new boolean[candidateEdges.size()];
 
         backtrack(
-                sortedEdges,
-                minRemaining,
                 0,
-                vertices,
-                parent,
-                currentEdges,
+                currentSolution,
                 0.0,
-                bestWeight,
-                bestEdges,
-<<<<<<< HEAD
-<<<<<<< HEAD
-                metrics,
-=======
-                exploredStates,
-                prunedStates,
-                maxRecursionDepth,
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
-                exploredStates,
-                prunedStates,
-                maxRecursionDepth,
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-                0
+                selected,
+                vertices
         );
 
         /*
-         * Se não encontramos V - 1 arestas,
+         * Se nenhuma solução foi encontrada,
          * o grafo não é conexo.
          */
-        if (bestEdges.size() != vertices - 1) {
+        if (bestSolution.size()
+                != vertices - 1) {
 
             throw new IllegalArgumentException(
                     "Não foi possível construir uma MST. "
@@ -176,286 +115,346 @@ public class MSTBacktracking implements MSTAlgorithm {
             );
         }
 
-        return new BacktrackingResult(
-                bestEdges,
-                bestWeight[0],
-<<<<<<< HEAD
-<<<<<<< HEAD
-                metrics.getExploredStates(),
-                metrics.getPrunedStates(),
-                metrics.getMaxRecursionDepth(),
-                metrics.getCompletedSolutions()
-=======
-                exploredStates[0],
-                prunedStates[0],
-                maxRecursionDepth[0]
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
-                exploredStates[0],
-                prunedStates[0],
-                maxRecursionDepth[0]
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
+        return new MSTResult(
+                bestSolution,
+                bestWeight
         );
     }
 
     /**
-     * Busca recursiva por decisão binária sobre cada aresta.
-     *
-     * Em cada nível decidimos incluir ou não a aresta atual.
-     * As podas reduzem drasticamente o espaço de busca.
-     *
-     * @param edges            arestas ordenadas por peso
-     * @param minRemaining     soma acumulada dos menores pesos restantes
-     * @param index            posição atual na lista de arestas
-     * @param vertices         quantidade de vértices do grafo
-     * @param parent           vetor do Union-Find (para detectar ciclos)
-     * @param currentEdges     arestas selecionadas na solução parcial
-     * @param currentWeight    peso atual da solução parcial
-     * @param bestWeight       melhor peso encontrado até o momento
-     * @param bestEdges        arestas da melhor solução encontrada
-<<<<<<< HEAD
-<<<<<<< HEAD
-     * @param metrics          métricas de exploração acumuladas
-=======
-     * @param exploredStates   contador de estados explorados
-     * @param prunedStates     contador de estados podados
-     * @param maxRecursionDepth profundidade máxima atingida
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
-     * @param exploredStates   contador de estados explorados
-     * @param prunedStates     contador de estados podados
-     * @param maxRecursionDepth profundidade máxima atingida
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-     * @param depth            profundidade atual da recursão
+     * Função recursiva principal do Backtracking.
      */
     private void backtrack(
-            List<Edge> edges,
-            double[] minRemaining,
             int index,
-            int vertices,
-            int[] parent,
-            List<Edge> currentEdges,
+            List<Edge> currentSolution,
             double currentWeight,
-            double[] bestWeight,
-            List<Edge> bestEdges,
-<<<<<<< HEAD
-<<<<<<< HEAD
-            BacktrackingMetrics metrics,
-            int depth
+            boolean[] selected,
+            int vertices
     ) {
 
-        metrics.incrementExploredStates();
+        metrics.incrementRecursiveCalls();
+        metrics.incrementStatesExplored();
 
-        metrics.updateMaxRecursionDepth(depth);
-=======
-=======
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-            long[] exploredStates,
-            long[] prunedStates,
-            int[] maxRecursionDepth,
-            int depth
-    ) {
+        int depth = currentSolution.size();
 
-        exploredStates[0]++;
-
-        maxRecursionDepth[0] =
-                Math.max(maxRecursionDepth[0], depth);
-<<<<<<< HEAD
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
+        metrics.updateMaxDepth(depth);
 
         /*
-         * Solução completa:
-         * V - 1 arestas sem ciclos formam uma árvore geradora.
+         * Se já temos V - 1 arestas, podemos verificar
+         * se construímos uma árvore geradora.
+         */
+        if (currentSolution.size()
+                == vertices - 1) {
+
+            if (isConnected(
+                    currentSolution,
+                    vertices
+            )) {
+
+                if (currentWeight < bestWeight) {
+
+                    bestWeight = currentWeight;
+
+                    bestSolution =
+                            new ArrayList<>(
+                                    currentSolution
+                            );
+                }
+            }
+
+            return;
+        }
+
+        /*
+         * Não há mais arestas disponíveis.
+         */
+        if (index >= candidateEdges.size()) {
+            return;
+        }
+
+        /*
+         * Poda por custo:
          *
-         * Como todos os pesos são não negativos, qualquer solução
-         * completa encontrada é automaticamente melhor ou igual
-         * às que ainda seriam geradas a partir dela.
+         * se o peso atual já é maior ou igual
+         * à melhor solução encontrada, não vale
+         * a pena continuar explorando.
          */
-        if (currentEdges.size() == vertices - 1) {
+        if (currentWeight >= bestWeight) {
 
-            bestWeight[0] = currentWeight;
+            metrics.incrementPrunings();
 
-            bestEdges.clear();
-            bestEdges.addAll(currentEdges);
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-            metrics.incrementCompletedSolutions();
-
-=======
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
             return;
         }
 
         /*
-         * Poda: não restam arestas para tentar.
-         */
-        if (index >= edges.size()) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-            metrics.incrementPrunedStates();
-=======
-            prunedStates[0]++;
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
-            prunedStates[0]++;
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-            return;
-        }
-
-        /*
-         * Poda: quantidade insuficiente de arestas restantes
-         * para completar V - 1.
-         */
-        int needed = (vertices - 1) - currentEdges.size();
-
-        if (needed > edges.size() - index) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-            metrics.incrementPrunedStates();
-=======
-            prunedStates[0]++;
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
-            prunedStates[0]++;
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-            return;
-        }
-
-        /*
-         * Poda por limite inferior otimista:
+         * Poda estrutural:
          *
-         * mesmo que as próximas 'needed' menores arestas
-         * pudessem ser todas adicionadas sem formar ciclo,
-         * o peso final não superaria a melhor solução atual.
+         * Mesmo escolhendo todas as próximas arestas,
+         * não conseguiremos alcançar V - 1 arestas.
          */
-        double optimisticLowerBound =
-                currentWeight
-                        + (minRemaining[index] - minRemaining[index + needed]);
+        int remainingEdges =
+                candidateEdges.size() - index;
 
-        if (optimisticLowerBound >= bestWeight[0]) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-            metrics.incrementPrunedStates();
-=======
-            prunedStates[0]++;
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
-            prunedStates[0]++;
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
+        int neededEdges =
+                (vertices - 1)
+                        - currentSolution.size();
+
+        if (remainingEdges < neededEdges) {
+
+            metrics.incrementPrunings();
+
             return;
         }
 
-        Edge edge = edges.get(index);
-
-        int source = edge.getSource();
-        int destination = edge.getDestination();
+        Edge currentEdge =
+                candidateEdges.get(index);
 
         /*
-         * Opção 1: INCLUIR a aresta atual,
-         * somente se não formar ciclo na floresta parcial.
-         *
-         * Tentamos incluir primeiro para encontrar uma solução
-         * completa rapidamente, o que fortalece a poda por
-         * limite inferior nos demais ramos.
+         * ============================================
+         * RAMO 1 — INCLUIR A ARESTA
+         * ============================================
          */
-        int rootSource = find(parent, source);
-        int rootDestination = find(parent, destination);
 
-        if (rootSource != rootDestination) {
+        if (!createsCycle(
+                currentSolution,
+                currentEdge
+        )) {
 
-            /*
-             * Union (sem path compression para permitir rollback).
-             */
-            parent[rootSource] = rootDestination;
-
-            currentEdges.add(edge);
-
-            backtrack(
-                    edges,
-                    minRemaining,
-                    index + 1,
-                    vertices,
-                    parent,
-                    currentEdges,
-                    currentWeight + edge.getWeight(),
-                    bestWeight,
-                    bestEdges,
-<<<<<<< HEAD
-<<<<<<< HEAD
-                    metrics,
-=======
-                    exploredStates,
-                    prunedStates,
-                    maxRecursionDepth,
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
-                    exploredStates,
-                    prunedStates,
-                    maxRecursionDepth,
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-                    depth + 1
+            currentSolution.add(
+                    currentEdge
             );
 
+            selected[index] = true;
+
+            backtrack(
+                    index + 1,
+                    currentSolution,
+                    currentWeight
+                            + currentEdge.getWeight(),
+                    selected,
+                    vertices
+            );
+
+            selected[index] = false;
+
+            currentSolution.remove(
+                    currentSolution.size() - 1
+            );
+
+        } else {
+
             /*
-             * Rollback:
-             * remove a aresta e desfaz o union.
+             * A inclusão criaria um ciclo.
              */
-            currentEdges.remove(currentEdges.size() - 1);
-            parent[rootSource] = rootSource;
+            metrics.incrementPrunings();
         }
 
         /*
-         * Opção 2: NÃO incluir a aresta atual.
+         * ============================================
+         * RAMO 2 — EXCLUIR A ARESTA
+         * ============================================
          */
+
         backtrack(
-                edges,
-                minRemaining,
                 index + 1,
-                vertices,
-                parent,
-                currentEdges,
+                currentSolution,
                 currentWeight,
-                bestWeight,
-                bestEdges,
-<<<<<<< HEAD
-<<<<<<< HEAD
-                metrics,
-=======
-                exploredStates,
-                prunedStates,
-                maxRecursionDepth,
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-=======
-                exploredStates,
-                prunedStates,
-                maxRecursionDepth,
->>>>>>> 9ed9fa75fb897f8162ac5bb3d7abec031ff01920
-                depth + 1
+                selected,
+                vertices
         );
     }
 
     /**
-     * Encontra a raiz do conjunto de um vértice.
-     *
-     * Versão sem compressão de caminho para permitir
-     * desfazer (rollback) a operação de union no backtracking.
+     * Verifica se a inclusão de uma aresta criaria
+     * um ciclo na solução parcial.
      */
-    private int find(int[] parent, int vertex) {
+    private boolean createsCycle(
+            List<Edge> currentSolution,
+            Edge candidate
+    ) {
 
-        while (parent[vertex] != vertex) {
-            vertex = parent[vertex];
+        int maxVertex = 0;
+
+        for (Edge edge : candidateEdges) {
+            maxVertex = Math.max(
+                    maxVertex,
+                    Math.max(
+                            edge.getSource(),
+                            edge.getDestination()
+                    )
+            );
         }
 
-        return vertex;
+        maxVertex = Math.max(
+                maxVertex,
+                Math.max(
+                        candidate.getSource(),
+                        candidate.getDestination()
+                )
+        );
+
+        boolean[] visited =
+                new boolean[maxVertex + 1];
+
+        /*
+         * DFS para verificar se já existe caminho
+         * entre as extremidades da nova aresta.
+         */
+        return pathExists(
+                candidate.getSource(),
+                candidate.getDestination(),
+                currentSolution,
+                visited
+        );
+    }
+
+    /**
+     * Verifica se existe um caminho entre source e destination
+     * usando somente as arestas da solução parcial.
+     */
+    private boolean pathExists(
+            int current,
+            int target,
+            List<Edge> solution,
+            boolean[] visited
+    ) {
+
+        if (current == target) {
+            return true;
+        }
+
+        visited[current] = true;
+
+        for (Edge edge : solution) {
+
+            int neighbor = -1;
+
+            if (edge.getSource() == current) {
+
+                neighbor =
+                        edge.getDestination();
+
+            } else if (
+                    edge.getDestination()
+                            == current
+            ) {
+
+                neighbor =
+                        edge.getSource();
+            }
+
+            if (neighbor != -1
+                    && !visited[neighbor]) {
+
+                if (pathExists(
+                        neighbor,
+                        target,
+                        solution,
+                        visited
+                )) {
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Verifica se a solução parcial conecta
+     * todos os vértices.
+     */
+    private boolean isConnected(
+            List<Edge> solution,
+            int vertices
+    ) {
+
+        if (vertices == 1) {
+            return true;
+        }
+
+        boolean[] visited =
+                new boolean[vertices];
+
+        List<List<Integer>> adjacency =
+                new ArrayList<>();
+
+        for (int i = 0; i < vertices; i++) {
+            adjacency.add(
+                    new ArrayList<>()
+            );
+        }
+
+        for (Edge edge : solution) {
+
+            adjacency
+                    .get(edge.getSource())
+                    .add(edge.getDestination());
+
+            adjacency
+                    .get(edge.getDestination())
+                    .add(edge.getSource());
+        }
+
+        dfs(
+                0,
+                adjacency,
+                visited
+        );
+
+        for (boolean vertexVisited : visited) {
+
+            if (!vertexVisited) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * DFS utilizada para verificar conectividade.
+     */
+    private void dfs(
+            int vertex,
+            List<List<Integer>> adjacency,
+            boolean[] visited
+    ) {
+
+        visited[vertex] = true;
+
+        for (int neighbor :
+                adjacency.get(vertex)) {
+
+            if (!visited[neighbor]) {
+
+                dfs(
+                        neighbor,
+                        adjacency,
+                        visited
+                );
+            }
+        }
+    }
+
+    /**
+     * Retorna as métricas da última execução.
+     */
+    public BacktrackingMetrics getMetrics() {
+
+        if (metrics == null) {
+
+            throw new IllegalStateException(
+                    "O algoritmo ainda não foi executado."
+            );
+        }
+
+        return metrics;
     }
 
     @Override
     public String getName() {
-        return "Backtracking";
+        return "Backtracking - MST";
     }
 }
