@@ -14,47 +14,41 @@ import java.util.Map;
 public class BenchmarkConfig {
 
     /**
-     * Tamanhos utilizados pelos algoritmos gerais
-     * (Prim e Kruskal).
+     * Tamanhos utilizados pelos algoritmos gerais:
+     * Prim e Kruskal.
      */
     private int[] vertexCounts;
 
     /**
-     * Tamanhos menores utilizados especificamente
-     * para o Backtracking.
-     *
-     * O Backtracking possui crescimento muito mais
-     * acentuado do espaço de busca.
+     * Tamanhos específicos utilizados pelo Backtracking.
      */
     private int[] backtrackingVertexCounts;
 
     /**
-     * Densidades nomeadas.
+     * Categorias de densidade.
      *
      * O valor representa:
      *
      * E / Emax
      *
-     * onde Emax = V(V-1)/2.
+     * onde:
+     *
+     * Emax = V(V - 1) / 2
      */
     private Map<String, Double> densityLevels;
 
     /**
-     * Quantidade de execuções medidas para cada algoritmo
-     * em uma mesma instância.
+     * Quantidade de execuções medidas por configuração.
      */
     private int repetitions;
 
     /**
-     * Quantidade de execuções preliminares utilizadas
-     * para aquecimento da JVM.
-     *
-     * Essas execuções não entram nos resultados.
+     * Quantidade de execuções de aquecimento da JVM.
      */
     private int warmupRuns;
 
     /**
-     * Seed utilizada para geração das instâncias.
+     * Seed utilizada para reproduzir as instâncias.
      */
     private long seed;
 
@@ -69,23 +63,17 @@ public class BenchmarkConfig {
     private double maxWeight;
 
     /**
-     * Número máximo de vértices em que o Backtracking
-     * poderá ser executado.
-     *
-     * Atua como proteção contra execuções impraticáveis.
+     * Limite máximo de vértices para o Backtracking.
      */
     private int maxBacktrackingVertices;
 
     /**
-     * Nome do arquivo CSV de saída.
+     * Arquivo CSV de saída.
      */
     private String outputFile;
 
     public BenchmarkConfig() {
 
-        /*
-         * Tamanhos padrão para Prim e Kruskal.
-         */
         this.vertexCounts = new int[]{
                 10,
                 50,
@@ -94,9 +82,6 @@ public class BenchmarkConfig {
                 1000
         };
 
-        /*
-         * Tamanhos deliberadamente menores para Backtracking.
-         */
         this.backtrackingVertexCounts = new int[]{
                 5,
                 6,
@@ -107,36 +92,31 @@ public class BenchmarkConfig {
         };
 
         /*
-         * Densidades relativas ao número máximo de arestas.
+         * IMPORTANTE:
          *
-         * 1%  -> esparso
-         * 10% -> médio
-         * 50% -> denso
-         *
-         * Esses valores podem ser alterados conforme
-         * a metodologia final do projeto.
+         * Esses nomes precisam ser exatamente os mesmos
+         * utilizados pelo Main.generateInstances().
          */
         this.densityLevels = new LinkedHashMap<>();
 
-        densityLevels.put("esparso", 0.01);
-        densityLevels.put("medio", 0.10);
-        densityLevels.put("denso", 0.50);
+        densityLevels.put("sparse", 0.01);
+        densityLevels.put("medium", 0.10);
+        densityLevels.put("dense", 0.50);
 
         this.repetitions = 10;
 
-        /*
-         * Duas execuções de aquecimento por padrão.
-         */
         this.warmupRuns = 2;
 
         this.seed = 42L;
 
         this.minWeight = 1.0;
+
         this.maxWeight = 100.0;
 
         this.maxBacktrackingVertices = 15;
 
-        this.outputFile = "results/raw/resultado_benchmark.csv";
+        this.outputFile =
+                "results/raw/resultado_benchmark.csv";
     }
 
     public int[] getVertexCounts() {
@@ -146,13 +126,16 @@ public class BenchmarkConfig {
         );
     }
 
-    public void setVertexCounts(int[] vertexCounts) {
+    public void setVertexCounts(
+            int[] vertexCounts
+    ) {
 
         if (vertexCounts == null
                 || vertexCounts.length == 0) {
 
             throw new IllegalArgumentException(
-                    "É necessário informar pelo menos um tamanho de grafo."
+                    "É necessário informar pelo menos um "
+                            + "tamanho de grafo."
             );
         }
 
@@ -188,11 +171,13 @@ public class BenchmarkConfig {
                 || backtrackingVertexCounts.length == 0) {
 
             throw new IllegalArgumentException(
-                    "É necessário informar pelo menos um tamanho para Backtracking."
+                    "É necessário informar pelo menos um "
+                            + "tamanho para Backtracking."
             );
         }
 
-        for (int vertices : backtrackingVertexCounts) {
+        for (int vertices :
+                backtrackingVertexCounts) {
 
             if (vertices <= 0) {
 
@@ -224,7 +209,8 @@ public class BenchmarkConfig {
                 || densityLevels.isEmpty()) {
 
             throw new IllegalArgumentException(
-                    "É necessário informar pelo menos uma densidade."
+                    "É necessário informar pelo menos "
+                            + "uma densidade."
             );
         }
 
@@ -262,7 +248,9 @@ public class BenchmarkConfig {
         return repetitions;
     }
 
-    public void setRepetitions(int repetitions) {
+    public void setRepetitions(
+            int repetitions
+    ) {
 
         if (repetitions <= 0) {
 
@@ -278,7 +266,9 @@ public class BenchmarkConfig {
         return warmupRuns;
     }
 
-    public void setWarmupRuns(int warmupRuns) {
+    public void setWarmupRuns(
+            int warmupRuns
+    ) {
 
         if (warmupRuns < 0) {
 
@@ -302,7 +292,9 @@ public class BenchmarkConfig {
         return minWeight;
     }
 
-    public void setMinWeight(double minWeight) {
+    public void setMinWeight(
+            double minWeight
+    ) {
 
         if (minWeight < 0) {
 
@@ -314,7 +306,8 @@ public class BenchmarkConfig {
         if (minWeight > maxWeight) {
 
             throw new IllegalArgumentException(
-                    "O peso mínimo não pode ser maior que o peso máximo."
+                    "O peso mínimo não pode ser maior "
+                            + "que o peso máximo."
             );
         }
 
@@ -325,12 +318,15 @@ public class BenchmarkConfig {
         return maxWeight;
     }
 
-    public void setMaxWeight(double maxWeight) {
+    public void setMaxWeight(
+            double maxWeight
+    ) {
 
         if (maxWeight < minWeight) {
 
             throw new IllegalArgumentException(
-                    "O peso máximo deve ser maior ou igual ao peso mínimo."
+                    "O peso máximo deve ser maior ou igual "
+                            + "ao peso mínimo."
             );
         }
 
@@ -360,7 +356,9 @@ public class BenchmarkConfig {
         return outputFile;
     }
 
-    public void setOutputFile(String outputFile) {
+    public void setOutputFile(
+            String outputFile
+    ) {
 
         if (outputFile == null
                 || outputFile.isBlank()) {

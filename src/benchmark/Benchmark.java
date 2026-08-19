@@ -6,15 +6,18 @@ import algorithms.common.MSTAlgorithm;
 import algorithms.common.MSTResult;
 import algorithms.greedy.kruskal.Kruskal;
 import algorithms.greedy.prim.PrimAdjList;
+import algorithms.greedy.prim.PrimMatrix;
 
 import graph.Graph;
-import graph.GraphGenerator;
+import graph.GraphLoader;
 
 import utils.CSVWriter;
 import utils.MSTValidator;
 import utils.MemoryMonitor;
 import utils.Timer;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -24,6 +27,9 @@ import java.util.Set;
 /**
  * Executa os experimentos comparativos dos algoritmos
  * de Árvore Geradora Mínima.
+ *
+ * As instâncias utilizadas pelos experimentos são carregadas
+ * dos arquivos previamente gerados e armazenados em instances/.
  */
 public class Benchmark {
 
@@ -34,7 +40,6 @@ public class Benchmark {
     public Benchmark(BenchmarkConfig config) {
 
         if (config == null) {
-
             throw new IllegalArgumentException(
                     "A configuração do benchmark não pode ser nula."
             );
@@ -46,7 +51,7 @@ public class Benchmark {
 
         /*
          * Estratégia Gulosa:
-         * Prim + Lista de Adjacência
+         * Prim + Lista de Adjacência.
          */
         this.algorithms.add(
                 new PrimAdjList()
@@ -54,17 +59,22 @@ public class Benchmark {
 
         /*
          * Estratégia Gulosa:
-         * Kruskal + Union-Find
+         * Prim + Matriz de Adjacência.
+         */
+        this.algorithms.add(
+                new PrimMatrix()
+        );
+
+        /*
+         * Estratégia Gulosa:
+         * Kruskal + Union-Find.
          */
         this.algorithms.add(
                 new Kruskal()
         );
 
         /*
-         * Backtracking.
-         *
-         * Será executado somente nos tamanhos
-         * permitidos pela configuração.
+         * Estratégia de Backtracking.
          */
         this.algorithms.add(
                 new MSTBacktracking()
@@ -72,7 +82,10 @@ public class Benchmark {
     }
 
     /**
-     * Executa todos os experimentos.
+     * Executa todos os experimentos configurados.
+     *
+     * As instâncias são carregadas dos arquivos existentes
+     * no diretório instances/.
      */
     public void run() {
 
@@ -109,11 +122,10 @@ public class Benchmark {
                 new ArrayList<>();
 
         /*
-         * Junta os tamanhos gerais e os tamanhos
+         * Junta os tamanhos gerais com os tamanhos
          * específicos do Backtracking.
          *
-         * LinkedHashSet evita duplicações mantendo
-         * a ordem de inserção.
+         * LinkedHashSet evita duplicações.
          */
         Set<Integer> allVertexCounts =
                 new LinkedHashSet<>();
@@ -131,12 +143,12 @@ public class Benchmark {
         }
 
         /*
-         * Para cada tamanho de entrada.
+         * Percorre cada tamanho de entrada.
          */
         for (int vertices : allVertexCounts) {
 
             /*
-             * Para cada categoria de densidade.
+             * Percorre cada categoria de densidade.
              */
             for (Map.Entry<String, Double> densityEntry :
                     config.getDensityLevels().entrySet()) {
@@ -148,7 +160,8 @@ public class Benchmark {
                         densityEntry.getValue();
 
                 /*
-                 * Calcula a quantidade de arestas.
+                 * Calcula a quantidade de arestas esperada
+                 * para localizar o arquivo correspondente.
                  */
                 int edges =
                         calculateEdgeCount(
@@ -157,24 +170,14 @@ public class Benchmark {
                         );
 
                 /*
-                 * Geração da instância.
-                 *
-                 * A mesma instância será usada por
-                 * todos os algoritmos.
+                 * Localiza a instância previamente gerada.
                  */
-                Graph graph =
-                        GraphGenerator.generate(
+                Path instancePath =
+                        buildInstancePath(
                                 vertices,
+                                densityName,
                                 edges,
-                                config.getMinWeight(),
-                                config.getMaxWeight(),
                                 config.getSeed()
-                        );
-
-                double actualDensity =
-                        calculateActualDensity(
-                                vertices,
-                                edges
                         );
 
                 System.out.println(
@@ -182,23 +185,87 @@ public class Benchmark {
                 );
 
                 System.out.printf(
-                        "V = %d | E = %d | "
-                                + "densidade solicitada = %.2f%% | "
-                                + "densidade real = %.2f%%%n",
+                        "Instância: V=%d | E=%d | "
+                                + "densidade=%s | arquivo=%s%n",
                         vertices,
                         edges,
-                        requestedDensity * 100.0,
+                        densityName,
+                        instancePath
+                );
+
+                /*
+                 * Carrega a instância salva.
+                 */
+                Graph graph;
+
+                try {
+
+                    graph =
+                            GraphLoader.load(
+                                    instancePath
+                            );
+
+                } catch (IOException e) {
+
+                    System.err.println(
+                            "Não foi possível carregar a instância:"
+                    );
+
+                    System.err.println(
+                            instancePath
+                    );
+
+                    System.err.println(
+                            "Execute primeiro o comando "
+                                    + "'generate' do Main."
+                    );
+
+                    throw new RuntimeException(
+                            "Falha ao carregar instância.",
+                            e
+                    );
+                }
+
+                /*
+                 * Verificação de segurança:
+                 * o arquivo carregado deve corresponder
+                 * à configuração do experimento.
+                 */
+                validateLoadedGraph(
+                        graph,
+                        vertices,
+                        edges,
+                        instancePath
+                );
+
+                /*
+                 * Calcula a densidade REAL da instância carregada.
+                 */
+                double actualDensity =
+                        calculateActualDensity(
+                                graph.getVertices(),
+                                graph.getEdgeCount()
+                        );
+
+                System.out.printf(
+                        "Densidade solicitada: %.2f%%%n",
+                        requestedDensity * 100.0
+                );
+
+                System.out.printf(
+                        "Densidade real: %.2f%%%n",
                         actualDensity * 100.0
                 );
 
                 /*
-                 * Calculamos uma MST de referência antes
-                 * das execuções medidas.
+                 * Calcula uma MST de referência.
                  *
-                 * Essa execução NÃO entra nas métricas.
+                 * Essa execução não entra na medição.
                  */
                 MSTResult referenceResult =
-                        calculateReferenceMST(graph);
+                        calculateReferenceMST(
+                                graph
+                        );
 
                 /*
                  * Executa cada algoritmo.
@@ -207,16 +274,15 @@ public class Benchmark {
                         algorithms) {
 
                     /*
-                     * Evita executar Backtracking em tamanhos
-                     * que o próprio benchmark considera
-                     * impraticáveis.
+                     * Backtracking possui um limite específico
+                     * devido ao crescimento do espaço de busca.
                      */
                     if (isBacktracking(algorithm)
                             && vertices
                             > config.getMaxBacktrackingVertices()) {
 
                         System.out.printf(
-                                "[%s] V = %d -> "
+                                "[%s] V=%d -> "
                                         + "ignorado: acima do limite "
                                         + "de Backtracking (%d)%n",
                                 algorithm.getName(),
@@ -228,7 +294,9 @@ public class Benchmark {
                     }
 
                     /*
-                     * Executa warm-up.
+                     * Aquecimento da JVM.
+                     *
+                     * Não entra nos resultados.
                      */
                     performWarmup(
                             algorithm,
@@ -285,7 +353,10 @@ public class Benchmark {
     }
 
     /**
-     * Calcula a quantidade de arestas a partir da densidade.
+     * Calcula a quantidade de arestas utilizada para uma
+     * determinada densidade.
+     *
+     * density = E / Emax
      */
     private int calculateEdgeCount(
             int vertices,
@@ -293,7 +364,6 @@ public class Benchmark {
     ) {
 
         if (vertices <= 0) {
-
             throw new IllegalArgumentException(
                     "O número de vértices deve ser positivo."
             );
@@ -303,15 +373,15 @@ public class Benchmark {
                 ((long) vertices * (vertices - 1))
                         / 2;
 
-        /*
-         * Um grafo conexo precisa possuir pelo menos V - 1
-         * arestas.
-         */
         long requestedEdges =
                 Math.round(
                         maxEdges * density
                 );
 
+        /*
+         * Um grafo conexo precisa de pelo menos V - 1
+         * arestas.
+         */
         long edges =
                 Math.max(
                         vertices - 1L,
@@ -328,7 +398,7 @@ public class Benchmark {
     }
 
     /**
-     * Calcula a densidade efetivamente utilizada.
+     * Calcula a densidade efetivamente presente no grafo.
      */
     private double calculateActualDensity(
             int vertices,
@@ -348,12 +418,105 @@ public class Benchmark {
     }
 
     /**
-     * Calcula uma MST de referência.
+     * Constrói o caminho da instância.
      *
-     * A execução fica fora da medição.
+     * A estrutura é a mesma criada pelo Main.generate().
+     */
+    private Path buildInstancePath(
+            int vertices,
+            String densityName,
+            int edges,
+            long seed
+    ) {
+
+        String category;
+
+        if (vertices <= 20) {
+
+            category = "small";
+
+        } else if (vertices <= 100) {
+
+            category = "medium";
+
+        } else if (vertices <= 1000) {
+
+            category = "large";
+
+        } else {
+
+            category = "very_large";
+        }
+
+        String filename =
+                String.format(
+                        "graph_V%d_E%d_seed%d.graph",
+                        vertices,
+                        edges,
+                        seed
+                );
+
+        return Path.of(
+                "instances",
+                category,
+                densityName,
+                filename
+        );
+    }
+
+    /**
+     * Verifica se a instância carregada corresponde
+     * às dimensões esperadas.
+     */
+    private void validateLoadedGraph(
+            Graph graph,
+            int expectedVertices,
+            int expectedEdges,
+            Path path
+    ) {
+
+        if (graph == null) {
+
+            throw new IllegalStateException(
+                    "O arquivo "
+                            + path
+                            + " não produziu um grafo válido."
+            );
+        }
+
+        if (graph.getVertices()
+                != expectedVertices) {
+
+            throw new IllegalStateException(
+                    "A instância "
+                            + path
+                            + " possui "
+                            + graph.getVertices()
+                            + " vértices, mas eram esperados "
+                            + expectedVertices
+                            + "."
+            );
+        }
+
+        if (graph.getEdgeCount()
+                != expectedEdges) {
+
+            throw new IllegalStateException(
+                    "A instância "
+                            + path
+                            + " possui "
+                            + graph.getEdgeCount()
+                            + " arestas, mas eram esperadas "
+                            + expectedEdges
+                            + "."
+            );
+        }
+    }
+
+    /**
+     * Calcula uma MST de referência utilizando Kruskal.
      *
-     * Kruskal é utilizado como referência porque
-     * produz uma MST ótima.
+     * Essa execução ocorre fora das medições do benchmark.
      */
     private MSTResult calculateReferenceMST(
             Graph graph
@@ -367,7 +530,7 @@ public class Benchmark {
                         graph
                 );
 
-        if (!MSTValidator.isValidStructure(
+        if (!MSTValidator.isValidMST(
                 graph,
                 referenceResult
         )) {
@@ -381,9 +544,9 @@ public class Benchmark {
     }
 
     /**
-     * Executa uma quantidade de warm-ups.
+     * Realiza as execuções de warm-up.
      *
-     * Os resultados não são registrados.
+     * Não produz métricas.
      */
     private void performWarmup(
             MSTAlgorithm algorithm,
@@ -399,7 +562,7 @@ public class Benchmark {
     }
 
     /**
-     * Executa uma medição individual.
+     * Executa uma única medição.
      */
     private Metrics runMeasuredExecution(
             MSTAlgorithm algorithm,
@@ -437,13 +600,20 @@ public class Benchmark {
         try {
 
             /*
-             * Início das medições.
+             * O MemoryMonitor é iniciado primeiro porque
+             * pode chamar System.gc().
+             *
+             * Assim, essa preparação não entra no tempo
+             * medido do algoritmo.
+             */
+            memoryMonitor.start();
+            memoryMonitorStarted = true;
+
+            /*
+             * Início efetivo da medição de tempo.
              */
             timer.start();
             timerStarted = true;
-
-            memoryMonitor.start();
-            memoryMonitorStarted = true;
 
             /*
              * Executa apenas o algoritmo.
@@ -463,9 +633,6 @@ public class Benchmark {
 
         } finally {
 
-            /*
-             * Finaliza as medições exatamente uma vez.
-             */
             if (timerStarted) {
                 timer.stop();
             }
@@ -476,8 +643,7 @@ public class Benchmark {
         }
 
         /*
-         * Registra tempo e memória apenas se a execução
-         * foi efetivamente iniciada.
+         * Registra o tempo.
          */
         if (timerStarted) {
 
@@ -486,6 +652,9 @@ public class Benchmark {
             );
         }
 
+        /*
+         * Registra a memória.
+         */
         if (memoryMonitorStarted) {
 
             metrics.setMemoryUsed(
@@ -494,38 +663,40 @@ public class Benchmark {
         }
 
         /*
-         * Se o algoritmo lançou exceção, não há resultado
-         * para validar.
+         * Se o algoritmo falhou, não há resultado
+         * a ser validado.
          */
         if (result == null) {
-
             return metrics;
         }
 
         /*
-         * Guarda o peso encontrado.
+         * Armazena o peso encontrado.
          */
         metrics.setMstWeight(
                 result.getTotalWeight()
         );
 
-        /*
-         * Valida a estrutura da MST.
-         */
         try {
 
-            if (!MSTValidator.isValidStructure(
+            /*
+             * Validação completa:
+             * estrutura + peso armazenado.
+             */
+            if (!MSTValidator.isValidMST(
                     graph,
                     result
             )) {
 
                 throw new IllegalStateException(
-                        "A estrutura da MST é inválida."
+                        "A solução produzida "
+                                + "não é uma MST válida."
                 );
             }
 
             /*
-             * Compara o peso com a solução de referência.
+             * A solução deve possuir o mesmo peso
+             * da MST de referência.
              */
             if (!MSTValidator.areWeightsEqual(
                     referenceResult,
@@ -542,7 +713,8 @@ public class Benchmark {
             }
 
             /*
-             * Coleta métricas específicas do Backtracking.
+             * Coleta as métricas específicas
+             * do Backtracking.
              */
             collectBacktrackingMetrics(
                     algorithm,
@@ -567,14 +739,16 @@ public class Benchmark {
 
     /**
      * Copia as métricas específicas do Backtracking
-     * para o objeto geral de benchmark.
+     * para Metrics.
      */
     private void collectBacktrackingMetrics(
             MSTAlgorithm algorithm,
             Metrics metrics
     ) {
 
-        if (!(algorithm instanceof MSTBacktracking)) {
+        if (!(algorithm
+                instanceof MSTBacktracking)) {
+
             return;
         }
 
@@ -606,17 +780,18 @@ public class Benchmark {
     }
 
     /**
-     * Verifica se determinado algoritmo é o Backtracking.
+     * Verifica se determinado algoritmo é Backtracking.
      */
     private boolean isBacktracking(
             MSTAlgorithm algorithm
     ) {
 
-        return algorithm instanceof MSTBacktracking;
+        return algorithm
+                instanceof MSTBacktracking;
     }
 
     /**
-     * Exibe os resultados de uma execução.
+     * Exibe uma execução no console.
      */
     private void printMetrics(
             Metrics metrics
@@ -627,7 +802,7 @@ public class Benchmark {
             System.out.printf(
                     "[%s] V=%d E=%d "
                             + "densidade=%s "
-                            + "repetição=%d "
+                            + "rep=%d "
                             + "| FALHOU: %s%n",
 
                     metrics.getAlgorithmName(),
@@ -662,7 +837,7 @@ public class Benchmark {
         );
 
         /*
-         * Exibe métricas extras somente para Backtracking.
+         * Exibe informações extras do Backtracking.
          */
         if (metrics.getStatesExplored() > 0
                 || metrics.getRecursiveCalls() > 0) {
@@ -680,59 +855,5 @@ public class Benchmark {
                     metrics.getMaxDepth()
             );
         }
-    }
-
-    /**
-     * Permite executar o benchmark diretamente.
-     */
-    public static void main(String[] args) {
-
-        BenchmarkConfig config =
-                new BenchmarkConfig();
-
-        /*
-         * Configuração dos experimentos.
-         */
-        config.setVertexCounts(
-                new int[]{
-                        10,
-                        50,
-                        100,
-                        500,
-                        1000
-                }
-        );
-
-        config.setBacktrackingVertexCounts(
-                new int[]{
-                        5,
-                        6,
-                        8,
-                        10,
-                        12,
-                        15
-                }
-        );
-
-        config.setRepetitions(10);
-
-        config.setWarmupRuns(2);
-
-        config.setSeed(42L);
-
-        config.setMinWeight(1.0);
-
-        config.setMaxWeight(100.0);
-
-        config.setMaxBacktrackingVertices(15);
-
-        config.setOutputFile(
-                "results/raw/resultado_benchmark.csv"
-        );
-
-        Benchmark benchmark =
-                new Benchmark(config);
-
-        benchmark.run();
     }
 }
