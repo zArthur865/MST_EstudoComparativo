@@ -6,16 +6,24 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
- * Gera gráficos SVG a partir do summary.csv.
+ * Gera gráficos SVG a partir dos resultados processados.
  *
- * Não utiliza bibliotecas externas.
+ * Os gráficos são gerados sem bibliotecas externas.
+ *
+ * Algoritmos gulosos:
+ * - Prim - Lista de Adjacência
+ * - Prim - Matriz de Adjacência
+ * - Kruskal
+ *
+ * Cada algoritmo possui uma cor própria para facilitar
+ * a comparação visual.
  */
 public final class ChartGenerator {
 
@@ -23,15 +31,39 @@ public final class ChartGenerator {
     private static final int HEIGHT = 600;
 
     private static final int LEFT = 90;
-    private static final int RIGHT = 40;
+    private static final int RIGHT = 180;
     private static final int TOP = 70;
     private static final int BOTTOM = 90;
 
+    /*
+     * Cores utilizadas nos algoritmos gulosos.
+     *
+     * Mantemos as cores fixas em todos os gráficos para que
+     * o leitor associe sempre a mesma cor ao mesmo algoritmo.
+     */
+    private static final String COLOR_PRIM_LIST =
+            "#2563EB";
+
+    private static final String COLOR_PRIM_MATRIX =
+            "#DC2626";
+
+    private static final String COLOR_KRUSKAL =
+            "#16A34A";
+
+    private static final String COLOR_BACKTRACKING =
+            "#7C3AED";
+
     private ChartGenerator() {
+        /*
+         * Classe utilitária.
+         */
     }
 
     /**
-     * Gera todos os gráficos definidos para o projeto.
+     * Gera todos os gráficos do projeto.
+     *
+     * @param summaryPath caminho do summary.csv
+     * @param outputDirectory diretório onde os SVGs serão salvos
      */
     public static void generateAll(
             String summaryPath,
@@ -59,17 +91,33 @@ public final class ChartGenerator {
             List<Row> rows =
                     readSummary(input);
 
-            generateTimeCharts(
+            /*
+             * Gráficos comparativos dos três algoritmos gulosos.
+             */
+            generateGreedyTimeCharts(
                     rows,
                     output
             );
 
-            generateMemoryCharts(
+            generateGreedyMemoryCharts(
                     rows,
                     output
             );
 
-            generateBacktrackingCharts(
+            /*
+             * Gráficos específicos do Backtracking.
+             */
+            generateBacktrackingTimeCharts(
+                    rows,
+                    output
+            );
+
+            generateBacktrackingMemoryCharts(
+                    rows,
+                    output
+            );
+
+            generateBacktrackingMetricCharts(
                     rows,
                     output
             );
@@ -91,7 +139,20 @@ public final class ChartGenerator {
         }
     }
 
-    private static void generateTimeCharts(
+    // ============================================================
+    // GRÁFICOS DOS ALGORITMOS GULOSOS
+    // ============================================================
+
+    /**
+     * Gera gráficos de tempo comparando:
+     *
+     * Prim - Lista de Adjacência
+     * Prim - Matriz de Adjacência
+     * Kruskal
+     *
+     * Cada gráfico corresponde a uma densidade.
+     */
+    private static void generateGreedyTimeCharts(
             List<Row> rows,
             Path output
     ) throws IOException {
@@ -105,63 +166,40 @@ public final class ChartGenerator {
         for (String density :
                 densities) {
 
-            List<Series> greedy =
-                    createSeries(
+            List<Series> series =
+                    createGreedySeries(
                             rows,
                             density,
-                            false,
                             "avg_time_ns"
                     );
 
-            if (!greedy.isEmpty()) {
-
-                writeChart(
-                        output.resolve(
-                                "tempo_vs_vertices_"
-                                        + density
-                                        + "_greedy.svg"
-                        ),
-                        "Tempo de execução - "
-                                + density,
-                        "Vértices",
-                        "Tempo médio (ms)",
-                        convertNanosecondsToMilliseconds(
-                                greedy
-                        ),
-                        true
-                );
+            if (series.isEmpty()) {
+                continue;
             }
 
-            List<Series> backtracking =
-                    createSeries(
-                            rows,
-                            density,
-                            true,
-                            "avg_time_ns"
-                    );
+            convertNanosecondsToMilliseconds(
+                    series
+            );
 
-            if (!backtracking.isEmpty()) {
-
-                writeChart(
-                        output.resolve(
-                                "tempo_vs_vertices_"
-                                        + density
-                                        + "_backtracking.svg"
-                        ),
-                        "Tempo de execução - Backtracking - "
-                                + density,
-                        "Vértices",
-                        "Tempo médio (ms)",
-                        convertNanosecondsToMilliseconds(
-                                backtracking
-                        ),
-                        true
-                );
-            }
+            writeChart(
+                    output.resolve(
+                            "tempo_vs_vertices_"
+                                    + density
+                                    + "_greedy.svg"
+                    ),
+                    "Tempo de execução - "
+                            + density,
+                    "Número de vértices",
+                    "Tempo médio (ms)",
+                    series
+            );
         }
     }
 
-    private static void generateMemoryCharts(
+    /**
+     * Gera gráficos de memória comparando os três algoritmos gulosos.
+     */
+    private static void generateGreedyMemoryCharts(
             List<Row> rows,
             Path output
     ) throws IOException {
@@ -175,63 +213,445 @@ public final class ChartGenerator {
         for (String density :
                 densities) {
 
-            List<Series> greedy =
-                    createSeries(
+            List<Series> series =
+                    createGreedySeries(
                             rows,
                             density,
-                            false,
                             "avg_memory_bytes"
                     );
 
-            if (!greedy.isEmpty()) {
-
-                writeChart(
-                        output.resolve(
-                                "memoria_vs_vertices_"
-                                        + density
-                                        + "_greedy.svg"
-                        ),
-                        "Memória - "
-                                + density,
-                        "Vértices",
-                        "Memória média (KB)",
-                        convertBytesToKilobytes(
-                                greedy
-                        ),
-                        true
-                );
+            if (series.isEmpty()) {
+                continue;
             }
 
-            List<Series> backtracking =
-                    createSeries(
-                            rows,
-                            density,
-                            true,
-                            "avg_memory_bytes"
-                    );
+            convertBytesToKilobytes(
+                    series
+            );
 
-            if (!backtracking.isEmpty()) {
-
-                writeChart(
-                        output.resolve(
-                                "memoria_vs_vertices_"
-                                        + density
-                                        + "_backtracking.svg"
-                        ),
-                        "Memória - Backtracking - "
-                                + density,
-                        "Vértices",
-                        "Memória média (KB)",
-                        convertBytesToKilobytes(
-                                backtracking
-                        ),
-                        true
-                );
-            }
+            writeChart(
+                    output.resolve(
+                            "memoria_vs_vertices_"
+                                    + density
+                                    + "_greedy.svg"
+                    ),
+                    "Consumo de memória - "
+                            + density,
+                    "Número de vértices",
+                    "Memória média (KB)",
+                    series
+            );
         }
     }
 
-    private static void generateBacktrackingCharts(
+    /**
+     * Cria as séries dos três algoritmos gulosos.
+     */
+    private static List<Series> createGreedySeries(
+            List<Row> rows,
+            String density,
+            String metric
+    ) {
+
+        Map<String, Series> seriesMap =
+                new LinkedHashMap<>();
+
+        /*
+         * Ordem fixa para que a legenda seja sempre:
+         *
+         * Prim Lista
+         * Prim Matriz
+         * Kruskal
+         */
+        String[] algorithms = {
+                "Prim - Lista de Adjacência",
+                "Prim - Matriz de Adjacência",
+                "Kruskal"
+        };
+
+        for (String algorithm :
+                algorithms) {
+
+            String color =
+                    getAlgorithmColor(
+                            algorithm
+                    );
+
+            seriesMap.put(
+                    algorithm,
+                    new Series(
+                            algorithm,
+                            color
+                    )
+            );
+        }
+
+        for (Row row : rows) {
+
+            if (!row.density.equals(density)) {
+                continue;
+            }
+
+            if (!isGreedyAlgorithm(
+                    row.algorithm
+            )) {
+                continue;
+            }
+
+            double value =
+                    row.get(metric);
+
+            if (Double.isNaN(value)) {
+                continue;
+            }
+
+            Series series =
+                    findSeries(
+                            seriesMap,
+                            row.algorithm
+                    );
+
+            if (series == null) {
+                continue;
+            }
+
+            series.points.put(
+                    row.vertices,
+                    value
+            );
+        }
+
+        /*
+         * Remove séries que não possuem dados.
+         */
+        List<Series> result =
+                new ArrayList<>();
+
+        for (Series series :
+                seriesMap.values()) {
+
+            if (!series.points.isEmpty()) {
+                result.add(series);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Identifica se o algoritmo pertence ao grupo guloso.
+     */
+    private static boolean isGreedyAlgorithm(
+            String algorithm
+    ) {
+
+        return normalizeAlgorithmName(algorithm)
+                .equals(
+                        normalizeAlgorithmName(
+                                "Prim - Lista de Adjacência"
+                        )
+                )
+                || normalizeAlgorithmName(algorithm)
+                .equals(
+                        normalizeAlgorithmName(
+                                "Prim - Matriz de Adjacência"
+                        )
+                )
+                || normalizeAlgorithmName(algorithm)
+                .equals(
+                        normalizeAlgorithmName(
+                                "Kruskal"
+                        )
+                );
+    }
+
+    /**
+     * Localiza a série correspondente.
+     *
+     * O CSV precisa conter os mesmos nomes produzidos
+     * pelos métodos getName() dos algoritmos.
+     */
+    private static Series findSeries(
+            Map<String, Series> seriesMap,
+            String algorithm
+    ) {
+
+        for (Map.Entry<String, Series> entry :
+                seriesMap.entrySet()) {
+
+            if (normalizeAlgorithmName(
+                    entry.getKey()
+            ).equals(
+                    normalizeAlgorithmName(
+                            algorithm
+                    )
+            )) {
+
+                return entry.getValue();
+            }
+        }
+
+        /*
+         * Pequena tolerância para eventuais nomes diferentes.
+         */
+        String normalized =
+                normalizeAlgorithmName(
+                        algorithm
+                );
+
+        if (normalized.contains(
+                "prim - lista"
+        )) {
+
+            return findByName(
+                    seriesMap,
+                    "Prim - Lista de Adjacência"
+            );
+        }
+
+        if (normalized.contains(
+                "prim - matriz"
+        )) {
+
+            return findByName(
+                    seriesMap,
+                    "Prim - Matriz de Adjacência"
+            );
+        }
+
+        if (normalized.equals(
+                "kruskal"
+        )) {
+
+            return findByName(
+                    seriesMap,
+                    "Kruskal"
+            );
+        }
+
+        return null;
+    }
+
+    private static Series findByName(
+            Map<String, Series> seriesMap,
+            String name
+    ) {
+
+        return seriesMap.get(name);
+    }
+
+    /**
+     * Retorna a cor padronizada de cada algoritmo.
+     */
+    private static String getAlgorithmColor(
+            String algorithm
+    ) {
+
+        String normalized =
+                normalizeAlgorithmName(
+                        algorithm
+                );
+
+        if (normalized.contains(
+                "prim - lista"
+        )) {
+
+            return COLOR_PRIM_LIST;
+        }
+
+        if (normalized.contains(
+                "prim - matriz"
+        )) {
+
+            return COLOR_PRIM_MATRIX;
+        }
+
+        if (normalized.equals(
+                "kruskal"
+        )) {
+
+            return COLOR_KRUSKAL;
+        }
+
+        return "#000000";
+    }
+
+    /**
+     * Normaliza nomes para comparação.
+     */
+    private static String normalizeAlgorithmName(
+            String name
+    ) {
+
+        if (name == null) {
+            return "";
+        }
+
+        return name
+                .trim()
+                .toLowerCase()
+                .replaceAll(
+                        "\\s+",
+                        " "
+                );
+    }
+
+    // ============================================================
+    // GRÁFICOS DO BACKTRACKING
+    // ============================================================
+
+    /**
+     * Gera gráficos de tempo do Backtracking separados
+     * por densidade.
+     */
+    private static void generateBacktrackingTimeCharts(
+            List<Row> rows,
+            Path output
+    ) throws IOException {
+
+        String[] densities = {
+                "sparse",
+                "medium",
+                "dense"
+        };
+
+        for (String density :
+                densities) {
+
+            List<Series> series =
+                    createBacktrackingSeries(
+                            rows,
+                            density,
+                            "avg_time_ns"
+                    );
+
+            if (series.isEmpty()) {
+                continue;
+            }
+
+            convertNanosecondsToMilliseconds(
+                    series
+            );
+
+            writeChart(
+                    output.resolve(
+                            "tempo_vs_vertices_"
+                                    + density
+                                    + "_backtracking.svg"
+                    ),
+                    "Tempo de execução - Backtracking - "
+                            + density,
+                    "Número de vértices",
+                    "Tempo médio (ms)",
+                    series
+            );
+        }
+    }
+
+    /**
+     * Gera gráficos de memória do Backtracking.
+     */
+    private static void generateBacktrackingMemoryCharts(
+            List<Row> rows,
+            Path output
+    ) throws IOException {
+
+        String[] densities = {
+                "sparse",
+                "medium",
+                "dense"
+        };
+
+        for (String density :
+                densities) {
+
+            List<Series> series =
+                    createBacktrackingSeries(
+                            rows,
+                            density,
+                            "avg_memory_bytes"
+                    );
+
+            if (series.isEmpty()) {
+                continue;
+            }
+
+            convertBytesToKilobytes(
+                    series
+            );
+
+            writeChart(
+                    output.resolve(
+                            "memoria_vs_vertices_"
+                                    + density
+                                    + "_backtracking.svg"
+                    ),
+                    "Consumo de memória - Backtracking - "
+                            + density,
+                    "Número de vértices",
+                    "Memória média (KB)",
+                    series
+            );
+        }
+    }
+
+    /**
+     * Cria uma série específica do Backtracking.
+     */
+    private static List<Series> createBacktrackingSeries(
+            List<Row> rows,
+            String density,
+            String metric
+    ) {
+
+        /*
+         * Cada densidade possui sua própria série.
+         *
+         * Como este método é chamado individualmente por densidade,
+         * haverá uma única série no gráfico.
+         */
+        Series series =
+                new Series(
+                        "Backtracking - "
+                                + density,
+                        COLOR_BACKTRACKING
+                );
+
+        for (Row row : rows) {
+
+            if (!row.density.equals(density)) {
+                continue;
+            }
+
+            if (!isBacktracking(
+                    row.algorithm
+            )) {
+                continue;
+            }
+
+            double value =
+                    row.get(metric);
+
+            if (Double.isNaN(value)) {
+                continue;
+            }
+
+            series.points.put(
+                    row.vertices,
+                    value
+            );
+        }
+
+        if (series.points.isEmpty()) {
+            return List.of();
+        }
+
+        return List.of(series);
+    }
+
+    /**
+     * Gera os quatro gráficos específicos do Backtracking.
+     */
+    private static void generateBacktrackingMetricCharts(
             List<Row> rows,
             Path output
     ) throws IOException {
@@ -244,10 +664,10 @@ public final class ChartGenerator {
         };
 
         String[] titles = {
-                "Estados explorados pelo Backtracking",
-                "Chamadas recursivas do Backtracking",
-                "Podas realizadas pelo Backtracking",
-                "Profundidade máxima do Backtracking"
+                "Estados explorados - Backtracking",
+                "Chamadas recursivas - Backtracking",
+                "Podas realizadas - Backtracking",
+                "Profundidade máxima - Backtracking"
         };
 
         String[] filenames = {
@@ -258,10 +678,28 @@ public final class ChartGenerator {
         };
 
         String[] yLabels = {
-                "Estados",
-                "Chamadas",
+                "Estados explorados",
+                "Chamadas recursivas",
                 "Podas",
-                "Profundidade"
+                "Profundidade máxima"
+        };
+
+        /*
+         * Para cada métrica, geramos uma série para cada densidade.
+         *
+         * Aqui as cores não representam algoritmos diferentes;
+         * elas representam densidades diferentes.
+         */
+        String[] densities = {
+                "sparse",
+                "medium",
+                "dense"
+        };
+
+        String[] densityColors = {
+                "#2563EB",
+                "#DC2626",
+                "#16A34A"
         };
 
         for (int i = 0;
@@ -271,22 +709,51 @@ public final class ChartGenerator {
             List<Series> series =
                     new ArrayList<>();
 
-            for (String density :
-                    new String[]{
-                            "sparse",
-                            "medium",
-                            "dense"
-                    }) {
+            for (int d = 0;
+                 d < densities.length;
+                 d++) {
 
-                List<Series> current =
-                        createSeries(
-                                rows,
-                                density,
-                                true,
-                                metrics[i]
+                String density =
+                        densities[d];
+
+                Series current =
+                        new Series(
+                                "Backtracking - "
+                                        + density,
+                                densityColors[d]
                         );
 
-                series.addAll(current);
+                for (Row row :
+                        rows) {
+
+                    if (!row.density.equals(
+                            density
+                    )) {
+                        continue;
+                    }
+
+                    if (!isBacktracking(
+                            row.algorithm
+                    )) {
+                        continue;
+                    }
+
+                    double value =
+                            row.get(metrics[i]);
+
+                    if (Double.isNaN(value)) {
+                        continue;
+                    }
+
+                    current.points.put(
+                            row.vertices,
+                            value
+                    );
+                }
+
+                if (!current.points.isEmpty()) {
+                    series.add(current);
+                }
             }
 
             if (!series.isEmpty()) {
@@ -296,84 +763,39 @@ public final class ChartGenerator {
                                 filenames[i]
                         ),
                         titles[i],
-                        "Vértices",
+                        "Número de vértices",
                         yLabels[i],
-                        series,
-                        true
+                        series
                 );
             }
         }
     }
 
-    private static List<Series> createSeries(
-            List<Row> rows,
-            String density,
-            boolean backtrackingOnly,
-            String metric
+    private static boolean isBacktracking(
+            String algorithm
     ) {
 
-        Map<String, Series> map =
-                new LinkedHashMap<>();
-
-        for (Row row : rows) {
-
-            boolean isBacktracking =
-                    row.algorithm
-                            .toLowerCase()
-                            .contains(
-                                    "backtracking"
-                            );
-
-            if (backtrackingOnly
-                    != isBacktracking) {
-
-                continue;
-            }
-
-            if (!row.density.equals(
-                    density
-            )) {
-
-                continue;
-            }
-
-            double value =
-                    row.get(metric);
-
-            if (Double.isNaN(value)) {
-                continue;
-            }
-
-            Series series =
-                    map.computeIfAbsent(
-                            row.algorithm
-                                    + " - "
-                                    + density,
-                            ignored ->
-                                    new Series(
-                                            row.algorithm
-                                    )
-                    );
-
-            series.points.put(
-                    row.vertices,
-                    value
-            );
-        }
-
-        return new ArrayList<>(
-                map.values()
-        );
+        return algorithm != null
+                && algorithm
+                .toLowerCase()
+                .contains(
+                        "backtracking"
+                );
     }
 
-    private static List<Series> convertNanosecondsToMilliseconds(
-            List<Series> source
+    // ============================================================
+    // CONVERSÕES
+    // ============================================================
+
+    private static void convertNanosecondsToMilliseconds(
+            List<Series> series
     ) {
 
-        for (Series series : source) {
+        for (Series current :
+                series) {
 
             for (Map.Entry<Integer, Double> entry :
-                    series.points.entrySet()) {
+                    current.points.entrySet()) {
 
                 entry.setValue(
                         entry.getValue()
@@ -381,18 +803,17 @@ public final class ChartGenerator {
                 );
             }
         }
-
-        return source;
     }
 
-    private static List<Series> convertBytesToKilobytes(
-            List<Series> source
+    private static void convertBytesToKilobytes(
+            List<Series> series
     ) {
 
-        for (Series series : source) {
+        for (Series current :
+                series) {
 
             for (Map.Entry<Integer, Double> entry :
-                    series.points.entrySet()) {
+                    current.points.entrySet()) {
 
                 entry.setValue(
                         entry.getValue()
@@ -400,24 +821,31 @@ public final class ChartGenerator {
                 );
             }
         }
-
-        return source;
     }
+
+    // ============================================================
+    // GERAÇÃO DO SVG
+    // ============================================================
 
     private static void writeChart(
             Path output,
             String title,
             String xLabel,
             String yLabel,
-            List<Series> series,
-            boolean showLegend
+            List<Series> series
     ) throws IOException {
 
-        double minX = Double.POSITIVE_INFINITY;
-        double maxX = Double.NEGATIVE_INFINITY;
+        double minX =
+                Double.POSITIVE_INFINITY;
 
-        double minY = Double.POSITIVE_INFINITY;
-        double maxY = Double.NEGATIVE_INFINITY;
+        double maxX =
+                Double.NEGATIVE_INFINITY;
+
+        double minY =
+                Double.POSITIVE_INFINITY;
+
+        double maxY =
+                Double.NEGATIVE_INFINITY;
 
         for (Series current :
                 series) {
@@ -451,6 +879,7 @@ public final class ChartGenerator {
                 || !Double.isFinite(maxX)
                 || !Double.isFinite(minY)
                 || !Double.isFinite(maxY)) {
+
             return;
         }
 
@@ -464,13 +893,18 @@ public final class ChartGenerator {
             minY -= 1;
         }
 
+        /*
+         * Margem vertical.
+         */
         double yMargin =
-                (maxY - minY) * 0.10;
+                (maxY - minY)
+                        * 0.10;
 
-        minY = Math.max(
-                0,
-                minY - yMargin
-        );
+        minY =
+                Math.max(
+                        0,
+                        minY - yMargin
+                );
 
         maxY += yMargin;
 
@@ -496,12 +930,16 @@ public final class ChartGenerator {
 
             writer.newLine();
 
+            /*
+             * Fundo.
+             */
             writer.write(
                     "<rect x=\"0\" y=\"0\" width=\""
                             + WIDTH
                             + "\" height=\""
                             + HEIGHT
-                            + "\" fill=\"white\"/>"
+                            + "\" "
+                            + "fill=\"white\"/>"
             );
 
             writer.newLine();
@@ -515,7 +953,8 @@ public final class ChartGenerator {
                             + "\" y=\"30\" "
                             + "text-anchor=\"middle\" "
                             + "font-size=\"20\" "
-                            + "font-family=\"Arial\">"
+                            + "font-family=\"Arial\" "
+                            + "font-weight=\"bold\">"
                             + escape(title)
                             + "</text>"
             );
@@ -523,22 +962,30 @@ public final class ChartGenerator {
             writer.newLine();
 
             int chartWidth =
-                    WIDTH - LEFT - RIGHT;
+                    WIDTH
+                            - LEFT
+                            - RIGHT;
 
             int chartHeight =
-                    HEIGHT - TOP - BOTTOM;
+                    HEIGHT
+                            - TOP
+                            - BOTTOM;
 
             int x0 = LEFT;
+
             int y0 =
-                    HEIGHT - BOTTOM;
+                    HEIGHT
+                            - BOTTOM;
 
             int x1 =
-                    WIDTH - RIGHT;
+                    WIDTH
+                            - RIGHT;
 
-            int y1 = TOP;
+            int y1 =
+                    TOP;
 
             /*
-             * Eixos.
+             * Eixo X.
              */
             writer.write(
                     "<line x1=\""
@@ -549,11 +996,16 @@ public final class ChartGenerator {
                             + x1
                             + "\" y2=\""
                             + y0
-                            + "\" stroke=\"black\"/>"
+                            + "\" "
+                            + "stroke=\"#222222\" "
+                            + "stroke-width=\"2\"/>"
             );
 
             writer.newLine();
 
+            /*
+             * Eixo Y.
+             */
             writer.write(
                     "<line x1=\""
                             + x0
@@ -563,20 +1015,23 @@ public final class ChartGenerator {
                             + x0
                             + "\" y2=\""
                             + y1
-                            + "\" stroke=\"black\"/>"
+                            + "\" "
+                            + "stroke=\"#222222\" "
+                            + "stroke-width=\"2\"/>"
             );
 
             writer.newLine();
 
             /*
-             * Rótulos dos eixos.
+             * Rótulo X.
              */
             writer.write(
                     "<text x=\""
                             + (x0 + x1) / 2
                             + "\" y=\""
                             + (HEIGHT - 25)
-                            + "\" text-anchor=\"middle\" "
+                            + "\" "
+                            + "text-anchor=\"middle\" "
                             + "font-size=\"14\" "
                             + "font-family=\"Arial\">"
                             + escape(xLabel)
@@ -585,6 +1040,9 @@ public final class ChartGenerator {
 
             writer.newLine();
 
+            /*
+             * Rótulo Y.
+             */
             writer.write(
                     "<text x=\"20\" y=\""
                             + (y0 + y1) / 2
@@ -602,9 +1060,11 @@ public final class ChartGenerator {
             writer.newLine();
 
             /*
-             * Grades horizontais.
+             * Grade horizontal e escala Y.
              */
-            for (int i = 0; i <= 5; i++) {
+            for (int i = 0;
+                 i <= 5;
+                 i++) {
 
                 double value =
                         minY
@@ -627,7 +1087,8 @@ public final class ChartGenerator {
                                 + x1
                                 + "\" y2=\""
                                 + formatNumber(y)
-                                + "\" stroke=\"#dddddd\"/>"
+                                + "\" "
+                                + "stroke=\"#E5E7EB\"/>"
                 );
 
                 writer.newLine();
@@ -637,7 +1098,8 @@ public final class ChartGenerator {
                                 + (x0 - 10)
                                 + "\" y=\""
                                 + formatNumber(y + 5)
-                                + "\" text-anchor=\"end\" "
+                                + "\" "
+                                + "text-anchor=\"end\" "
                                 + "font-size=\"11\" "
                                 + "font-family=\"Arial\">"
                                 + formatNumber(value)
@@ -648,7 +1110,7 @@ public final class ChartGenerator {
             }
 
             /*
-             * Linhas.
+             * Linhas das séries.
              */
             for (Series current :
                     series) {
@@ -706,18 +1168,27 @@ public final class ChartGenerator {
                             formatNumber(y)
                     );
 
+                    /*
+                     * Ponto.
+                     */
                     writer.write(
                             "<circle cx=\""
                                     + formatNumber(x)
                                     + "\" cy=\""
                                     + formatNumber(y)
-                                    + "\" r=\"4\" "
-                                    + "fill=\"black\"/>"
+                                    + "\" "
+                                    + "r=\"4\" "
+                                    + "fill=\""
+                                    + current.color
+                                    + "\"/>"
                     );
 
                     writer.newLine();
                 }
 
+                /*
+                 * Linha da série.
+                 */
                 if (!path.isEmpty()) {
 
                     writer.write(
@@ -725,8 +1196,12 @@ public final class ChartGenerator {
                                     + path
                                     + "\" "
                                     + "fill=\"none\" "
-                                    + "stroke=\"black\" "
-                                    + "stroke-width=\"2\"/>"
+                                    + "stroke=\""
+                                    + current.color
+                                    + "\" "
+                                    + "stroke-width=\"3\" "
+                                    + "stroke-linejoin=\"round\" "
+                                    + "stroke-linecap=\"round\"/>"
                     );
 
                     writer.newLine();
@@ -736,45 +1211,67 @@ public final class ChartGenerator {
             /*
              * Legenda.
              */
-            if (showLegend) {
+            int legendX =
+                    WIDTH - 165;
 
-                int legendX =
-                        WIDTH - 260;
+            int legendY = 75;
 
-                int legendY = 65;
+            for (int i = 0;
+                 i < series.size();
+                 i++) {
 
-                for (int i = 0;
-                     i < series.size();
-                     i++) {
+                Series current =
+                        series.get(i);
 
-                    Series current =
-                            series.get(i);
+                int y =
+                        legendY
+                                + i * 28;
 
-                    int y =
-                            legendY
-                                    + i * 22;
+                /*
+                 * Quadrado da legenda.
+                 */
+                writer.write(
+                        "<rect x=\""
+                                + legendX
+                                + "\" y=\""
+                                + (y - 12)
+                                + "\" "
+                                + "width=\"12\" "
+                                + "height=\"12\" "
+                                + "fill=\""
+                                + current.color
+                                + "\"/>"
+                );
 
-                    writer.write(
-                            "<text x=\""
-                                    + legendX
-                                    + "\" y=\""
-                                    + y
-                                    + "\" "
-                                    + "font-size=\"12\" "
-                                    + "font-family=\"Arial\">"
-                                    + escape(
-                                    current.name
-                            )
-                                    + "</text>"
-                    );
+                writer.newLine();
 
-                    writer.newLine();
-                }
+                /*
+                 * Texto da legenda.
+                 */
+                writer.write(
+                        "<text x=\""
+                                + (legendX + 20)
+                                + "\" y=\""
+                                + y
+                                + "\" "
+                                + "font-size=\"11\" "
+                                + "font-family=\"Arial\">"
+                                + escape(
+                                current.name
+                        )
+                                + "</text>"
+                );
+
+                writer.newLine();
             }
 
             writer.write("</svg>");
         }
     }
+
+    // ============================================================
+    // LEITURA DO CSV
+    // ============================================================
 
     private static List<Row> readSummary(
             Path input
@@ -803,7 +1300,7 @@ public final class ChartGenerator {
              i++) {
 
             indexes.put(
-                    headers.get(i),
+                    headers.get(i).trim(),
                     i
             );
         }
@@ -824,25 +1321,41 @@ public final class ChartGenerator {
                             lines.get(i)
                     );
 
+            String algorithm =
+                    value(
+                            values,
+                            indexes,
+                            "algorithm"
+                    );
+
+            String density =
+                    value(
+                            values,
+                            indexes,
+                            "density"
+                    );
+
+            String verticesText =
+                    value(
+                            values,
+                            indexes,
+                            "vertices"
+                    );
+
+            if (algorithm.isBlank()
+                    || density.isBlank()
+                    || verticesText.isBlank()) {
+
+                continue;
+            }
+
             Row row =
                     new Row(
-                            value(
-                                    values,
-                                    indexes,
-                                    "algorithm"
-                            ),
+                            algorithm,
                             Integer.parseInt(
-                                    value(
-                                            values,
-                                            indexes,
-                                            "vertices"
-                                    )
+                                    verticesText
                             ),
-                            value(
-                                    values,
-                                    indexes,
-                                    "density"
-                            )
+                            density
                     );
 
             String[] numericColumns = {
@@ -922,7 +1435,8 @@ public final class ChartGenerator {
              i < line.length();
              i++) {
 
-            char c = line.charAt(i);
+            char c =
+                    line.charAt(i);
 
             if (c == '"') {
 
@@ -963,12 +1477,16 @@ public final class ChartGenerator {
         return values;
     }
 
+    // ============================================================
+    // AUXILIARES
+    // ============================================================
+
     private static String formatNumber(
             double value
     ) {
 
         return String.format(
-                java.util.Locale.US,
+                Locale.US,
                 "%.2f",
                 value
         );
@@ -986,22 +1504,28 @@ public final class ChartGenerator {
     }
 
     /**
-     * Uma série de dados de um gráfico.
+     * Representa uma série do gráfico.
      */
     private static class Series {
 
         private final String name;
+        private final String color;
 
         private final Map<Integer, Double> points =
                 new LinkedHashMap<>();
 
-        private Series(String name) {
+        private Series(
+                String name,
+                String color
+        ) {
+
             this.name = name;
+            this.color = color;
         }
     }
 
     /**
-     * Uma linha do summary.csv.
+     * Representa uma linha do summary.csv.
      */
     private static class Row {
 
@@ -1023,7 +1547,9 @@ public final class ChartGenerator {
             this.density = density;
         }
 
-        private double get(String column) {
+        private double get(
+                String column
+        ) {
 
             return values.getOrDefault(
                     column,
